@@ -5,6 +5,8 @@
 #include <expected>
 #include <span>
 
+#include "classfile_types.hpp"
+
 namespace pillar {
 enum struct classfile_reader_error_reason {
   NOT_ENOUGH_BYTES,
@@ -20,13 +22,6 @@ struct classfile_reader_error {
 };
 
 struct classfile {
-#ifdef UINT32_MAX
-  using u2_t = std::uint16_t;
-  using u4_t = std::uint32_t;
-#else
-#error "Exact width type std::uint32_t needs to be present"
-#endif
-
   u4_t magic = 0xCAFEBABE;
   u2_t minor_version;
   u2_t major_version;

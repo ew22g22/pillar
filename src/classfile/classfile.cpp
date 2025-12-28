@@ -56,22 +56,22 @@ struct classfile_reader {
 
   auto read_magic(this classfile_reader &self)
       -> std::expected<void, pillar::classfile_reader_error> {
-    return self.read_unsigned<pillar::classfile::u4_t>().and_then(
+    return self.read_unsigned<pillar::u4_t>().and_then(
         [&self](auto const magic)
             -> std::expected<void, pillar::classfile_reader_error> {
-          if (magic != static_cast<pillar::classfile::u4_t>(0xCAFEBABE)) {
+          if (magic != static_cast<pillar::u4_t>(0xCAFEBABE)) {
             return classfile_reader::error_invalid_magic_number();
           }
           return std::expected<void, pillar::classfile_reader_error>{};
         });
   }
 
-  auto read_versions(this classfile_reader &self) -> std::expected<
-      std::pair<pillar::classfile::u2_t, pillar::classfile::u2_t>,
-      pillar::classfile_reader_error> {
-    return self.read_unsigned<pillar::classfile::u2_t>().and_then(
+  auto read_versions(this classfile_reader &self)
+      -> std::expected<std::pair<pillar::u2_t, pillar::u2_t>,
+                       pillar::classfile_reader_error> {
+    return self.read_unsigned<pillar::u2_t>().and_then(
         [&self](auto minor_version) {
-          return self.read_unsigned<pillar::classfile::u2_t>().transform(
+          return self.read_unsigned<pillar::u2_t>().transform(
               [minor_version](auto major_version) {
                 return std::pair{minor_version, major_version};
               });
@@ -84,7 +84,7 @@ auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
   auto file = classfile{};
   auto reader = classfile_reader{};
 
-  return reader.read_unsigned<classfile::u4_t>()
+  return reader.read_unsigned<u4_t>()
       .and_then([&reader](auto) { return reader.read_magic(); })
       .and_then([&reader]() { return reader.read_versions(); })
       .and_then([&reader, &file](auto const pair) {
