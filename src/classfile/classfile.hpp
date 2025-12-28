@@ -11,6 +11,7 @@ namespace pillar {
 enum struct classfile_reader_error_reason {
   NOT_ENOUGH_BYTES,
   INVALID_MAGIC_NUMBER,
+  INVALID_CP_TAG,
 };
 
 struct classfile_reader_error {

@@ -3,9 +3,12 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <numeric>
+#include <ranges>
 #include <utility>
 
 #include "classfile.hpp"
+#include "cp_info.hpp"
 
 struct classfile_reader {
   std::span<std::byte> bytes{};
@@ -31,6 +34,12 @@ struct classfile_reader {
         .reason = pillar::classfile_reader_error_reason::INVALID_MAGIC_NUMBER,
         .byte_index = pillar::classfile_reader_error::NO_BYTE_INDEX,
     }};
+  }
+
+  auto error_invalid_cp_tag(this classfile_reader const &self)
+      -> std::unexpected<pillar::classfile_reader_error> {
+    return self.error_with_reason_and_byte_index<
+        pillar::classfile_reader_error_reason::INVALID_CP_TAG>();
   }
 
   template <typename T>
@@ -74,6 +83,145 @@ struct classfile_reader {
           return self.read_unsigned<pillar::u2_t>().transform(
               [minor_version](auto const major_version) {
                 return std::pair{minor_version, major_version};
+              });
+        });
+  }
+
+  auto read_constant_pool_count(this classfile_reader &self)
+      -> std::expected<pillar::u2_t, pillar::classfile_reader_error> {
+    return self.read_unsigned<pillar::u2_t>();
+  };
+
+  auto read_cp_info(this classfile_reader &self, pillar::u1_t tag)
+      -> std::expected<pillar::cp_info_t, pillar::classfile_reader_error> {
+    static auto const read_single
+        = [&self]<pillar::cp_info_tag Tag, typename T>() {
+            return self.read_unsigned<T>().transform([](auto const fst) {
+              return pillar::make_cp_info_t<Tag>(fst);
+            });
+          };
+
+    static auto const read_double
+        = [&self]<pillar::cp_info_tag Tag, typename T>() {
+            return self.read_unsigned<T>()
+                .and_then([&self](auto const fst) {
+                  return self.read_unsigned<T>().transform(
+                      [fst](auto const snd) { return std::pair{fst, snd}; });
+                })
+                .transform([&self](auto const pair) {
+                  auto const [fst, snd] = pair;
+                  return pillar::make_cp_info_t<Tag>(fst, snd);
+                });
+          };
+
+    switch (static_cast<pillar::cp_info_tag>(tag)) {
+    case pillar::cp_info_tag::CLASS:
+      return read_single
+          .template operator()<pillar::cp_info_tag::CLASS, pillar::u2_t>();
+
+    case pillar::cp_info_tag::FIELDREF:
+      return read_double
+          .template operator()<pillar::cp_info_tag::FIELDREF, pillar::u2_t>();
+
+    case pillar::cp_info_tag::METHODREF:
+      return read_double
+          .template operator()<pillar::cp_info_tag::METHODREF, pillar::u2_t>();
+
+    case pillar::cp_info_tag::INTERFACE_METHODREF:
+      return read_double.template
+      operator()<pillar::cp_info_tag::INTERFACE_METHODREF, pillar::u2_t>();
+
+    case pillar::cp_info_tag::STRING:
+      return read_single
+          .template operator()<pillar::cp_info_tag::STRING, pillar::u2_t>();
+
+    case pillar::cp_info_tag::INTEGER:
+      return read_single
+          .template operator()<pillar::cp_info_tag::INTEGER, pillar::u4_t>();
+
+    case pillar::cp_info_tag::FLOAT:
+      return read_single
+          .template operator()<pillar::cp_info_tag::FLOAT, pillar::u4_t>();
+
+    case pillar::cp_info_tag::LONG:
+      return read_double
+          .template operator()<pillar::cp_info_tag::LONG, pillar::u4_t>();
+
+    case pillar::cp_info_tag::DOUBLE:
+      return read_double
+          .template operator()<pillar::cp_info_tag::DOUBLE, pillar::u4_t>();
+
+    case pillar::cp_info_tag::NAME_AND_TYPE:
+      return read_double.template
+      operator()<pillar::cp_info_tag::NAME_AND_TYPE, pillar::u2_t>();
+
+    case pillar::cp_info_tag::UTF8:
+      /* TODO */
+      break;
+
+    case pillar::cp_info_tag::METHOD_HANDLE:
+      return self.read_unsigned<pillar::u1_t>()
+          .and_then([&self](auto const fst) {
+            return self.read_unsigned<pillar::u2_t>().transform(
+                [fst](auto const snd) { return std::pair{fst, snd}; });
+          })
+          .transform([&self](auto const pair) {
+            auto const [fst, snd] = pair;
+            return pillar::make_cp_info_t<pillar::cp_info_tag::METHOD_HANDLE>(
+                fst, snd);
+          });
+
+    case pillar::cp_info_tag::METHOD_TYPE:
+      return read_single.template
+      operator()<pillar::cp_info_tag::METHOD_TYPE, pillar::u2_t>();
+
+    case pillar::cp_info_tag::DYNAMIC:
+      return read_double
+          .template operator()<pillar::cp_info_tag::DYNAMIC, pillar::u2_t>();
+
+    case pillar::cp_info_tag::INVOKE_DYNAMIC:
+      return read_double.template
+      operator()<pillar::cp_info_tag::INVOKE_DYNAMIC, pillar::u2_t>();
+
+    case pillar::cp_info_tag::MODULE:
+      return read_single
+          .template operator()<pillar::cp_info_tag::MODULE, pillar::u2_t>();
+
+    case pillar::cp_info_tag::PACKAGE:
+      return read_single
+          .template operator()<pillar::cp_info_tag::PACKAGE, pillar::u2_t>();
+    }
+    return self.error_invalid_cp_tag();
+  }
+
+  auto read_constant_pool_data(this classfile_reader &self, pillar::u2_t count)
+      -> std::expected<std::vector<pillar::cp_info_t>,
+                       pillar::classfile_reader_error> {
+
+    auto const r
+        = std::views::iota(0, static_cast<int>(count))
+        | std::views::transform([&self](auto const i) {
+            return self.read_unsigned<pillar::u1_t>().and_then(
+                [&self](auto const tag) { return self.read_cp_info(tag); });
+          });
+
+    return std::accumulate(
+        std::begin(r),
+        std::end(r),
+        std::expected<std::vector<pillar::cp_info_t>,
+                      pillar::classfile_reader_error>{},
+        [](auto const acc, auto const right) {
+          return acc.and_then(
+              [right](auto v) -> std::expected<std::vector<pillar::cp_info_t>,
+                                               pillar::classfile_reader_error> {
+                if (right.has_value()) {
+                  v.push_back(right.value());
+                  return std::expected<std::vector<pillar::cp_info_t>,
+                                       pillar::classfile_reader_error>{v};
+                } else {
+                  return std::unexpected<pillar::classfile_reader_error>{
+                      right.error()};
+                }
               });
         });
   }
