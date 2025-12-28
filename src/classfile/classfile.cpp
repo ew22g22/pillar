@@ -234,10 +234,9 @@ auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
   auto file = classfile{};
   auto reader = classfile_reader{};
 
-  return reader.read_unsigned<u4_t>()
-      .and_then([&reader](auto) { return reader.read_magic(); })
+  return reader.read_magic()
       .and_then([&reader]() { return reader.read_versions(); })
-      .and_then([&reader, &file](auto const pair) {
+      .and_then([&file](auto const pair) {
         auto const [minor_version, major_version] = pair;
         file.minor_version = minor_version;
         file.major_version = major_version;
