@@ -205,25 +205,27 @@ struct classfile_reader {
                 [&self](auto const tag) { return self.read_cp_info(tag); });
           });
 
+    auto const accum = [](auto const acc, auto &&right) {
+      return acc.and_then(
+          [&right](auto v) -> std::expected<std::vector<pillar::cp_info_t>,
+                                            pillar::classfile_reader_error> {
+            if (right.has_value()) {
+              v.emplace_back(std::move(right.value()));
+              return std::expected<std::vector<pillar::cp_info_t>,
+                                   pillar::classfile_reader_error>{v};
+            } else {
+              return std::unexpected<pillar::classfile_reader_error>{
+                  right.error()};
+            }
+          });
+    };
+
     return std::accumulate(
         std::begin(r),
         std::end(r),
         std::expected<std::vector<pillar::cp_info_t>,
-                      pillar::classfile_reader_error>{},
-        [](auto const acc, auto const right) {
-          return acc.and_then(
-              [right](auto v) -> std::expected<std::vector<pillar::cp_info_t>,
-                                               pillar::classfile_reader_error> {
-                if (right.has_value()) {
-                  v.push_back(right.value());
-                  return std::expected<std::vector<pillar::cp_info_t>,
-                                       pillar::classfile_reader_error>{v};
-                } else {
-                  return std::unexpected<pillar::classfile_reader_error>{
-                      right.error()};
-                }
-              });
-        });
+                      pillar::classfile_reader_error>{std::in_place_t{}},
+        accum);
   }
 };
 
