@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "classfile.hpp"
-#include "cp_info.hpp"
 
 struct classfile_reader {
   std::span<std::byte> bytes{};
@@ -236,11 +235,18 @@ auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
 
   return reader.read_magic()
       .and_then([&reader]() { return reader.read_versions(); })
-      .and_then([&file](auto const pair) {
+      .transform([&file](auto const pair) {
         auto const [minor_version, major_version] = pair;
         file.minor_version = minor_version;
         file.major_version = major_version;
-        return std::expected<void, classfile_reader_error>{};
+      })
+      .and_then([&reader]() { return reader.read_constant_pool_count(); })
+      .and_then([&reader](auto const count) {
+        return reader.read_constant_pool_data(count);
+      })
+      .transform([&file](auto &&data) {
+        file.constant_pool_count = data.size();
+        file.constant_pool = std::move(data);
       })
       .transform([file]() { return file; });
 }

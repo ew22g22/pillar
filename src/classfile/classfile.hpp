@@ -6,6 +6,7 @@
 #include <span>
 
 #include "classfile_types.hpp"
+#include "cp_info.hpp"
 
 namespace pillar {
 enum struct classfile_reader_error_reason {
@@ -26,6 +27,8 @@ struct classfile {
   u4_t magic = 0xCAFEBABE;
   u2_t minor_version;
   u2_t major_version;
+  u2_t constant_pool_count;
+  std::vector<cp_info_t> constant_pool;
 
   static auto parse_from_bytes(std::span<std::byte> bytes)
       -> std::expected<classfile, classfile_reader_error>;
