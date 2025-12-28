@@ -70,9 +70,9 @@ struct classfile_reader {
       -> std::expected<std::pair<pillar::u2_t, pillar::u2_t>,
                        pillar::classfile_reader_error> {
     return self.read_unsigned<pillar::u2_t>().and_then(
-        [&self](auto minor_version) {
+        [&self](auto const minor_version) {
           return self.read_unsigned<pillar::u2_t>().transform(
-              [minor_version](auto major_version) {
+              [minor_version](auto const major_version) {
                 return std::pair{minor_version, major_version};
               });
         });
