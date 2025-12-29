@@ -226,6 +226,21 @@ struct classfile_reader {
                       pillar::classfile_reader_error>{std::in_place_t{}},
         accum);
   }
+
+  auto read_class_info(this classfile_reader &self)
+      -> std::expected<std::tuple<pillar::u2_t, pillar::u2_t, pillar::u2_t>,
+                       pillar::classfile_reader_error> {
+    return self.read_unsigned<pillar::u2_t>().and_then(
+        [&self](auto const access_flags) {
+          return self.read_unsigned<pillar::u2_t>().and_then(
+              [&self, access_flags](auto const this_class) {
+                return self.read_unsigned<pillar::u2_t>().transform(
+                    [&self, access_flags, this_class](auto const super_class) {
+                      return std::tuple{access_flags, this_class, super_class};
+                    });
+              });
+        });
+  }
 };
 
 auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
@@ -247,6 +262,13 @@ auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
       .transform([&file](auto &&data) {
         file.constant_pool_count = data.size();
         file.constant_pool = std::move(data);
+      })
+      .and_then([&reader]() { return reader.read_class_info(); })
+      .transform([&file](auto const tup) {
+        auto const [access_flags, this_class, super_class] = tup;
+        file.access_flags = access_flags;
+        file.this_class = this_class;
+        file.super_class = super_class;
       })
       .transform([file]() { return file; });
 }
