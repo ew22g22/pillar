@@ -28,12 +28,16 @@ struct classfile {
   u2_t minor_version;
   u2_t major_version;
   u2_t constant_pool_count;
-  std::vector<cp_info_t> constant_pool;
-  u2_t access_flags; /* TODO: Make this an enum struct */
+  std::vector<cp_info_t> constant_pool; /* [constant_pool_count] */
+  u2_t access_flags;                    /* TODO: Make this an enum struct */
   u2_t this_class;
   u2_t super_class;
   u2_t interfaces_count;
-  std::vector<u2_t> interfaces;
+  std::vector<u2_t> interfaces; /* [interfaces_count] */
+  u2_t fields_count;
+
+  u2_t attributes_count;
+  std::vector<attribute_info_t> attributes; /* [attributes_count] */
 
   static auto parse_from_bytes(std::span<std::byte> bytes)
       -> std::expected<classfile, classfile_reader_error>;
