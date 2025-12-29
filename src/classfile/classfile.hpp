@@ -32,6 +32,8 @@ struct classfile {
   u2_t access_flags; /* TODO: Make this an enum struct */
   u2_t this_class;
   u2_t super_class;
+  u2_t interfaces_count;
+  std::vector<u2_t> interfaces;
 
   static auto parse_from_bytes(std::span<std::byte> bytes)
       -> std::expected<classfile, classfile_reader_error>;

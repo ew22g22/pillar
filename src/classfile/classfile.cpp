@@ -1,14 +1,24 @@
 #include <algorithm>
 #include <bit>
+#include <concepts>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <limits>
 #include <numeric>
 #include <ranges>
+#include <type_traits>
 #include <utility>
 
 #include "classfile.hpp"
+
+template <typename F, typename Idx>
+concept ReadManyTransformable = requires (F transform, Idx i) {
+  {
+    transform(i)
+  } -> std::same_as<std::expected<typename decltype(transform(i))::value_type,
+                                  pillar::classfile_reader_error>>;
+};
 
 struct classfile_reader {
   std::span<std::byte> bytes{};
@@ -61,6 +71,29 @@ struct classfile_reader {
 
     self.byte_index += sz;
     return std::expected<T, pillar::classfile_reader_error>{n};
+  }
+
+  template <ReadManyTransformable<int> F>
+  auto read_many(this classfile_reader &self, int count, F transform) {
+    using Expected = std::invoke_result_t<F, int>;
+    using T = typename Expected::value_type;
+
+    auto const r = std::views::iota(0, static_cast<int>(count))
+                 | std::views::transform(
+                       [&transform](auto const i) { return transform(i); });
+
+    return std::ranges::fold_left(
+        r,
+        std::expected<std::vector<T>, pillar::classfile_reader_error>{
+            std::in_place_t{}},
+        [](auto accum, auto const &right) {
+          return accum.and_then([&right, accum = std::move(accum)](auto &left) {
+            return right.and_then([&left, accum = std::move(accum)](auto &r) {
+              left.emplace_back(r);
+              return accum;
+            });
+          });
+        });
   }
 
   auto read_magic(this classfile_reader &self)
@@ -232,6 +265,14 @@ struct classfile_reader {
               });
         });
   }
+
+  auto read_interfaces(this classfile_reader &self, pillar::u2_t count)
+      -> std::expected<std::vector<pillar::u2_t>,
+                       pillar::classfile_reader_error> {
+    return self.read_many(static_cast<int>(count), [&self](auto) {
+      return self.read_unsigned<pillar::u2_t>();
+    });
+  }
 };
 
 auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
@@ -260,6 +301,13 @@ auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
         file.access_flags = access_flags;
         file.this_class = this_class;
         file.super_class = super_class;
+      })
+      .and_then([&reader]() { return reader.read_unsigned<pillar::u2_t>(); })
+      .and_then(
+          [&reader](auto const count) { return reader.read_interfaces(count); })
+      .transform([&file](auto &&ifaces) {
+        file.interfaces_count = ifaces.size();
+        file.interfaces = std::move(ifaces);
       })
       .transform([file]() { return file; });
 }
