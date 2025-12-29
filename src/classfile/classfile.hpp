@@ -5,6 +5,7 @@
 #include <expected>
 #include <span>
 
+#include "attribute_info.hpp"
 #include "classfile_types.hpp"
 #include "cp_info.hpp"
 
