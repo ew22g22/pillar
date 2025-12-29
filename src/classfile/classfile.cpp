@@ -120,11 +120,6 @@ struct classfile_reader {
         });
   }
 
-  auto read_constant_pool_count(this classfile_reader &self)
-      -> std::expected<pillar::u2_t, pillar::classfile_reader_error> {
-    return self.read_unsigned<pillar::u2_t>();
-  };
-
   auto read_cp_info(this classfile_reader &self, pillar::u1_t tag)
       -> std::expected<pillar::cp_info_t, pillar::classfile_reader_error> {
     static auto const read_single
@@ -230,25 +225,10 @@ struct classfile_reader {
   auto read_constant_pool_data(this classfile_reader &self, pillar::u2_t count)
       -> std::expected<std::vector<pillar::cp_info_t>,
                        pillar::classfile_reader_error> {
-    auto const r
-        = std::views::iota(0, static_cast<int>(count))
-        | std::views::transform([&self](auto const i) {
-            return self.read_unsigned<pillar::u1_t>().and_then(
-                [&self](auto const tag) { return self.read_cp_info(tag); });
-          });
-
-    return std::ranges::fold_left(
-        r,
-        std::expected<std::vector<pillar::cp_info_t>,
-                      pillar::classfile_reader_error>{std::in_place_t{}},
-        [](auto accum, auto const &right) {
-          return accum.and_then([&right, accum = std::move(accum)](auto &left) {
-            return right.and_then([&left, accum = std::move(accum)](auto &r) {
-              left.emplace_back(r);
-              return accum;
-            });
-          });
-        });
+    return self.read_many(static_cast<int>(count), [&self](auto) {
+      return self.read_unsigned<pillar::u1_t>().and_then(
+          [&self](auto const tag) { return self.read_cp_info(tag); });
+    });
   }
 
   auto read_class_info(this classfile_reader &self)
@@ -287,7 +267,7 @@ auto pillar::classfile::parse_from_bytes(std::span<std::byte> bytes)
         file.minor_version = minor_version;
         file.major_version = major_version;
       })
-      .and_then([&reader]() { return reader.read_constant_pool_count(); })
+      .and_then([&reader]() { return reader.read_unsigned<pillar::u2_t>(); })
       .and_then([&reader](auto const count) {
         return reader.read_constant_pool_data(count);
       })
