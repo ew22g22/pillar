@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <cstring>
@@ -196,7 +197,6 @@ struct classfile_reader {
   auto read_constant_pool_data(this classfile_reader &self, pillar::u2_t count)
       -> std::expected<std::vector<pillar::cp_info_t>,
                        pillar::classfile_reader_error> {
-
     auto const r
         = std::views::iota(0, static_cast<int>(count))
         | std::views::transform([&self](auto const i) {
@@ -204,27 +204,18 @@ struct classfile_reader {
                 [&self](auto const tag) { return self.read_cp_info(tag); });
           });
 
-    auto const accum = [](auto const acc, auto &&right) {
-      return acc.and_then(
-          [&right](auto v) -> std::expected<std::vector<pillar::cp_info_t>,
-                                            pillar::classfile_reader_error> {
-            if (right.has_value()) {
-              v.emplace_back(std::move(right.value()));
-              return std::expected<std::vector<pillar::cp_info_t>,
-                                   pillar::classfile_reader_error>{v};
-            } else {
-              return std::unexpected<pillar::classfile_reader_error>{
-                  right.error()};
-            }
-          });
-    };
-
-    return std::accumulate(
-        std::begin(r),
-        std::end(r),
+    return std::ranges::fold_left(
+        r,
         std::expected<std::vector<pillar::cp_info_t>,
                       pillar::classfile_reader_error>{std::in_place_t{}},
-        accum);
+        [](auto accum, auto const &right) {
+          return accum.and_then([&right, accum = std::move(accum)](auto &left) {
+            return right.and_then([&left, accum = std::move(accum)](auto &r) {
+              left.emplace_back(r);
+              return accum;
+            });
+          });
+        });
   }
 
   auto read_class_info(this classfile_reader &self)
