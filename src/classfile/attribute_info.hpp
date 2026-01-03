@@ -344,8 +344,8 @@ struct annotation {
   u2_t type_index;
   u2_t num_element_value_pairs;
 
-  std::vector<element_value_pair> /* Incomplete type here */
-      element_value_pairs;        /* [num_element_value_pairs] */
+  std::vector<struct element_value_pair> /* Incomplete type here */
+      element_value_pairs;               /* [num_element_value_pairs] */
 };
 
 /* TODO: Maybe move this into the type system like other descriminated unions?
