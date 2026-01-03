@@ -85,7 +85,7 @@ struct classfile_reader {
     return std::ranges::fold_left(
         r,
         std::expected<std::vector<T>, pillar::classfile_reader_error>{
-            std::in_place_t{}},
+            std::in_place_t{}, static_cast<std::vector<T>::size_type>(count)},
         [](auto accum, auto const &right) {
           return accum.and_then([&right, accum = std::move(accum)](auto &left) {
             return right.and_then([&left, accum = std::move(accum)](auto &r) {
