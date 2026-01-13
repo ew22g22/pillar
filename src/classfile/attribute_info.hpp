@@ -348,33 +348,93 @@ struct annotation {
       element_value_pairs;               /* [num_element_value_pairs] */
 };
 
-/* TODO: Maybe move this into the type system like other descriminated unions?
- */
-struct element_value {
-  struct enum_const_value {
-    u2_t type_name_index;
-    u2_t const_name_index;
-  };
-
-  struct array_value {
-    u2_t num_values;
-    std::vector<element_value> values; /* [num_values] */
-  };
-
-  u1_t tag;
-
-  union {
-    u2_t const_value_index;
-    enum_const_value enum_const_value;
-    u2_t class_info_index;
-    annotation annotation_value;
-    array_value array_value;
-  } value;
+enum struct element_value_tag : u1_t {
+  BYTE = 'B',
+  CHAR = 'C',
+  DOUBLE = 'D',
+  FLOAT = 'F',
+  INT = 'I',
+  LONG = 'J',
+  SHORT = 'S',
+  BOOLEAN = 'Z',
+  STRING = 's',
+  ENUM = 'e',
+  CLASS = 'c',
+  ANNOTATION = '@',
+  ARRAY = '['
 };
+
+template <element_value_tag Tag>
+struct element_value;
+
+struct element_value<element_value_tag::BYTE> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::CHAR> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::DOUBLE> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::FLOAT> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::INT> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::LONG> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::SHORT> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::BOOLEAN> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::STRING> {
+  u2_t const_value_index;
+};
+
+struct element_value<element_value_tag::ENUM> {
+  u2_t type_and_name_index;
+  u2_t const_name_index;
+};
+
+struct element_value<element_value_tag::CLASS> {
+  u2_t class_info_index;
+};
+
+struct element_value<element_value_tag::ANNOTATION> {
+  annotation annotation_value;
+};
+
+struct element_value<element_value_tag::ARRAY> {
+  u2_t num_values;
+  std::vector<element_value_t> values; /* [num_values] */
+};
+
+template <element_value_tag... Tags>
+using element_values_t = std::variant<element_value<Tags>...>;
+using element_value_t
+    = element_values_t<element_value_tag::BYTE, element_value_tag::CHAR,
+                       element_value_tag::DOUBLE, element_value_tag::FLOAT,
+                       element_value_tag::INT, element_value_tag::LONG,
+                       element_value_tag::SHORT, element_value_tag::BOOLEAN,
+                       element_value_tag::STRING, element_value_tag::ENUM,
+                       element_value_tag::CLASS, element_value_tag::ANNOTATION,
+                       element_value_tag::ARRAY>;
 
 struct element_value_pair {
   u2_t element_name_index;
-  element_value value;
+  element_value_t value;
 };
 
 template <>
@@ -391,17 +451,16 @@ struct attribute_info<attribute_info_type::RUNTIME_INVISIBLE_ANNOTATIONS>
   std::vector<annotation> annotations; /* [num_annotations] */
 };
 
+struct parameter_annotation {
+  u2_t num_annotations;
+  std::vector<annotation> annotations; /* [num_annotations] */
+};
+
 template <>
 struct attribute_info<
     attribute_info_type::RUNTIME_VISIBLE_PARAMETER_ANNOTATIONS>
     : attribute_info_header {
   u1_t num_parameters;
-
-  struct parameter_annotation {
-    u2_t num_annotations;
-    std::vector<annotation> annotations; /* [num_annotations] */
-  };
-
   std::vector<parameter_annotation> parameter_annotations; /* num_parameters */
 };
 
@@ -410,13 +469,217 @@ struct attribute_info<
     attribute_info_type::RUNTIME_INVISIBLE_PARAMETER_ANNOTATIONS>
     : attribute_info_header {
   u1_t num_parameters;
+  std::vector<parameter_annotation> parameter_annotations; /* num_parameters */
+};
 
-  struct parameter_annotation {
-    u2_t num_annotations;
-    std::vector<annotation> annotations; /* [num_annotations] */
+struct type_path {
+  u1_t path_length;
+
+  struct path_entry {
+    u1_t type_path_kind;
+    u1_t type_argument_index;
   };
 
-  std::vector<parameter_annotation> parameter_annotations; /* num_parameters */
+  std::vector<path_entry> path; /* [path_length] */
+};
+
+enum struct type_annotation_tag : u1_t {
+  GENERIC_CLASS = 0x00,
+  GENERIC_METHOD = 0x01,
+  EXTENDS = 0x10,
+  GENERIC_CLASS_BOUND = 0x11,
+  GENERIC_METHOD_BOUND = 0x12,
+  FIELD = 0x13,
+  RETURN = 0x14,
+  RECEIVER = 0x15,
+  PARAMETER = 0x16,
+  THROWS = 0x17,
+  LOCAL = 0x40,
+  RESOURCE = 0x41,
+  EXCEPTION = 0x42,
+  INSTANCEOF = 0x43,
+  NEW = 0x44,
+  METHOD_NEW = 0x45,
+  METHOD_IDENTIFIER = 0x46,
+  CAST = 0x47,
+  GENERIC_NEW = 0x48,
+  GENERIC_METHOD_INVOCATION = 0x49,
+  GENERIC_METHOD_NEW = 0x4A,
+  GENERIC_METHOD_IDENTIFIER = 0x4B,
+};
+
+template <type_annotation_tag Tag>
+struct type_annotation_target;
+
+struct type_annotation_target<type_annotation_tag::GENERIC_CLASS> {
+  u1_t type_parameter_target;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_METHOD> {
+  u1_t type_parameter_target;
+};
+
+struct type_annotation_target<type_annotation_tag::EXTENDS> {
+  u2_t supertype_target;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_CLASS_BOUND> {
+  u1_t type_parameter_index;
+  u1_t bound_index;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_METHOD_BOUND> {
+  u1_t type_parameter_index;
+  u1_t bound_index;
+};
+
+struct type_annotation_target<type_annotation_tag::FIELD> {};
+
+struct type_annotation_target<type_annotation_tag::RETURN> {};
+
+struct type_annotation_target<type_annotation_tag::RECEIVER> {};
+
+struct type_annotation_target<type_annotation_tag::PARAMETER> {
+  u1_t formal_parameter_index;
+};
+
+struct type_annotation_target<type_annotation_tag::THROWS> {
+  u2_t throws_type_index;
+};
+
+struct localvar_table_entry {
+  u2_t start_pc;
+  u2_t length;
+  u2_t index;
+};
+
+struct type_annotation_target<type_annotation_tag::LOCAL> {
+  u2_t table_length;
+  std::vector<localvar_table_entry> table;
+};
+
+struct type_annotation_target<type_annotation_tag::RESOURCE> {
+  u2_t table_length;
+  std::vector<localvar_table_entry> table;
+};
+
+struct type_annotation_target<type_annotation_tag::EXCEPTION> {
+  u2_t exception_table_index;
+};
+
+struct type_annotation_target<type_annotation_tag::INSTANCEOF> {
+  u2_t offset;
+};
+
+struct type_annotation_target<type_annotation_tag::NEW> {
+  u2_t offset;
+};
+
+struct type_annotation_target<type_annotation_tag::METHOD_NEW> {
+  u2_t offset;
+};
+
+struct type_annotation_target<type_annotation_tag::METHOD_IDENTIFIER> {
+  u2_t offset;
+};
+
+struct type_annotation_target<type_annotation_tag::CAST> {
+  u2_t offset;
+  u1_t type_argument_index;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_NEW> {
+  u2_t offset;
+  u1_t type_argument_index;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_METHOD_INVOCATION> {
+  u2_t offset;
+  u1_t type_argument_index;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_METHOD_NEW> {
+  u2_t offset;
+  u1_t type_argument_index;
+};
+
+struct type_annotation_target<type_annotation_tag::GENERIC_METHOD_IDENTIFIER> {
+  u2_t offset;
+  u1_t type_argument_index;
+};
+
+template <type_annotation_tag... Tags>
+using type_annotation_targets_t = std::variant<type_annotation_target<Tags>...>;
+
+using type_annotation_target_t = type_annotation_targets_t<
+    type_annotation_tag::GENERIC_CLASS, type_annotation_tag::GENERIC_METHOD,
+    type_annotation_tag::EXTENDS, type_annotation_tag::GENERIC_CLASS_BOUND,
+    type_annotation_tag::GENERIC_METHOD_BOUND, type_annotation_tag::FIELD,
+    type_annotation_tag::RETURN, type_annotation_tag::RECEIVER,
+    type_annotation_tag::PARAMETER, type_annotation_tag::THROWS,
+    type_annotation_tag::LOCAL, type_annotation_tag::RESOURCE,
+    type_annotation_tag::EXCEPTION, type_annotation_tag::INSTANCEOF,
+    type_annotation_tag::NEW, type_annotation_tag::METHOD_NEW,
+    type_annotation_tag::METHOD_IDENTIFIER, type_annotation_tag::CAST,
+    type_annotation_tag::GENERIC_NEW,
+    type_annotation_tag::GENERIC_METHOD_INVOCATION,
+    type_annotation_tag::GENERIC_METHOD_NEW,
+    type_annotation_tag::GENERIC_METHOD_IDENTIFIER>;
+
+struct type_annotation {
+  type_annotation_target_t target_info;
+  u2_t type_index;
+  u2_t num_element_value_pairs;
+  std::vector<element_value_pair>
+      element_value_pairs; /* [num_element_value_pairs] */
+};
+
+template <>
+struct attribute_info<attribute_info_type::RUNTIME_VISIBLE_TYPE_ANNOTATIONS>
+    : attribute_info_header {
+  u2_t num_annotations;
+  std::vector<type_annotation> annotations; /* [num_annotations] */
+};
+
+template <>
+struct attribute_info<attribute_info_type::RUNTIME_INVISIBLE_TYPE_ANNOTATIONS>
+    : attribute_info_header {
+  u2_t num_annotations;
+  std::vector<type_annotation> annotations; /* [num_annotations] */
+};
+
+template <>
+struct attribute_info<attribute_info_type::ANNOTATION_DEFAULT>
+    : attribute_info_header {
+  element_value_t element_value;
+};
+
+template <>
+struct attribute_info<attribute_info_type::BOOTSTRAP_METHODS>
+    : attribute_info_header {
+  u2_t num_bootstrap_methods;
+
+  struct bootstrap_method_entry {
+    u2_t bootstrap_method_ref;
+    u2_t num_bootstrap_arguments;
+    std::vector<u2_t> bootstrap_arguments; /* [num_bootstrap_arguments] */
+  };
+
+  std::vector<bootstrap_method_entry>
+      bootstrap_methods; /* [num_bootstrap_methods] */
+};
+
+template <>
+struct attribute_info<attribute_info_type::METHOD_PARAMETERS>
+    : attribute_info_header {
+  u1_t parameters_count;
+
+  struct method_parameter_entry {
+    u2_t name_index;
+    u2_t access_flags;
+  };
+
+  std::vector<method_parameter_entry> parameters; /* [parameters_count] */
 };
 } // namespace pillar
 
