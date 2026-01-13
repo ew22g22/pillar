@@ -1,6 +1,7 @@
 #ifndef PILLAR_CLASSFILE_CLASSFILE_TYPES_HPP
 #define PILLAR_CLASSFILE_CLASSFILE_TYPES_HPP
 
+#include <cstddef>
 #include <cstdint>
 
 namespace pillar {

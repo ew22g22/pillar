@@ -90,7 +90,7 @@ struct cp_info<cp_info_tag::NAME_AND_TYPE> {
 template <>
 struct cp_info<cp_info_tag::UTF8> {
   u2_t length;
-  std::vector<u1_t> bytes;
+  std::vector<std::byte> bytes;
 };
 
 template <>

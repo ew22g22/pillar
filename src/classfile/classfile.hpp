@@ -5,25 +5,9 @@
 #include <expected>
 #include <span>
 
-#include "attribute_info.hpp"
-#include "classfile_types.hpp"
-#include "cp_info.hpp"
+#include "cp_reader.hpp"
 
 namespace pillar {
-enum struct classfile_reader_error_reason {
-  NOT_ENOUGH_BYTES,
-  INVALID_MAGIC_NUMBER,
-  INVALID_CP_TAG,
-};
-
-struct classfile_reader_error {
-  inline static auto constexpr NO_BYTE_INDEX
-      = std::numeric_limits<std::span<std::byte>::size_type>::max();
-
-  classfile_reader_error_reason reason;
-  std::span<std::byte>::size_type byte_index;
-};
-
 struct classfile {
   u4_t magic = 0xCAFEBABE;
   u2_t minor_version;
@@ -40,8 +24,40 @@ struct classfile {
   u2_t attributes_count;
   std::vector<attribute_info_t> attributes; /* [attributes_count] */
 
-  static auto parse_from_bytes(std::span<std::byte> bytes)
-      -> std::expected<classfile, classfile_reader_error>;
+  static auto constexpr parse_from_bytes(std::span<const std::byte> bytes)
+      -> std::expected<classfile, classfile_reader_error> {
+    auto reader = classfile_reader{.bytes = bytes};
+    return reader
+        .read<classfile_reader::value_wrapper<static_cast<u4_t>(0xCAFEBABE)>,
+              u2_t,
+              u2_t,
+              classfile_reader::array_wrapper<cp_info_t, u2_t>,
+              u2_t,
+              u2_t,
+              u2_t,
+              classfile_reader::array_wrapper<u2_t, u2_t>>()
+        .transform([](auto &&p) {
+          auto &&[magic,
+                  minor_version,
+                  major_version,
+                  cp,
+                  access_flags,
+                  this_class,
+                  super_class,
+                  ifaces]
+              = p;
+          return classfile{.magic = magic,
+                           .minor_version = minor_version,
+                           .major_version = major_version,
+                           .constant_pool_count = static_cast<u2_t>(cp.size()),
+                           .constant_pool = std::move(cp),
+                           .access_flags = access_flags,
+                           .this_class = this_class,
+                           .super_class = super_class,
+                           .interfaces_count = static_cast<u2_t>(ifaces.size()),
+                           .interfaces = std::move(ifaces)};
+        });
+  }
 };
 } // namespace pillar
 
